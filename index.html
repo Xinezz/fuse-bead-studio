@@ -601,6 +601,14 @@
     const dr = a[0]-b[0], dg = a[1]-b[1], db = a[2]-b[2];
     return Math.sqrt((2 + rmean/256)*dr*dr + 4*dg*dg + (2 + (255-rmean)/256)*db*db);
   }
+  // Natural sort for bead codes: letter family first (A before M), then the
+  // number within it (A2 before A10), so the order list reads like the chart.
+  function compareCode(a, b){
+    const pa = a.match(/^([A-Za-z]+)(\d*)$/) || [null, a, ""];
+    const pb = b.match(/^([A-Za-z]+)(\d*)$/) || [null, b, ""];
+    if (pa[1] !== pb[1]) return pa[1] < pb[1] ? -1 : 1;
+    return (parseInt(pa[2] || "0", 10)) - (parseInt(pb[2] || "0", 10));
+  }
   // ---- State ----
   let img = null;
   let trimBox = null;   // {x,y,w,h} bounding box of non-transparent content, in natural px
@@ -857,7 +865,7 @@
 
     const usedEntries = [...counts.entries()]
       .map(([idx, count]) => ({idx, count, ...activePalette[idx]}))
-      .sort((a,b) => b.count - a.count);
+      .sort((a,b) => compareCode(a.code, b.code));
     const codeByIdx = new Map(usedEntries.map(e => [e.idx, e.code]));
 
     lastGrid = {cols, rows, cellIdx, usedEntries, codeByIdx};
