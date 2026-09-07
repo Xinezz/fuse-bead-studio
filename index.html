@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fuse Bead Studio</title>
+<meta name="description" content="Turn any photo into a pegboard-ready fuse bead pattern, matched to a real craft bead color palette with a bead order list.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Work+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap">
+<style>
+  :root{
+    --paper: #f3ecdd;
+    --paper-raised: #fbf7ec;
+    --ink: #2b241c;
+    --ink-soft: #6b6152;
+    --line: #ddd0ae;
+    --accent: #e1592c;
+    --accent-ink: #fff7ee;
+    --accent2: #2f8577;
+    --highlight: #e8ab3d;
+    --danger: #c94f4f;
+    --shadow: rgba(60, 45, 20, 0.14);
+    --focus: #2f8577;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper: #211c15;
+      --paper-raised: #2b241b;
+      --ink: #f2e9d8;
+      --ink-soft: #b5a98f;
+      --line: #453a29;
+      --accent: #ef7247;
+      --accent-ink: #241108;
+      --accent2: #4aa696;
+      --highlight: #eab94f;
+      --danger: #e07272;
+      --shadow: rgba(0, 0, 0, 0.4);
+      --focus: #4aa696;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper: #211c15;
+    --paper-raised: #2b241b;
+    --ink: #f2e9d8;
+    --ink-soft: #b5a98f;
+    --line: #453a29;
+    --accent: #ef7247;
+    --accent-ink: #241108;
+    --accent2: #4aa696;
+    --highlight: #eab94f;
+    --danger: #e07272;
+    --shadow: rgba(0, 0, 0, 0.4);
+    --focus: #4aa696;
+  }
+
+  *{ box-sizing: border-box; }
+  body{
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Work Sans', system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  ::selection{ background: var(--highlight); color: var(--ink); }
+
+  .wrap{
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px 24px 64px;
+  }
+
+  header.top{
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    padding-bottom: 20px;
+    margin-bottom: 26px;
+    border-bottom: 3px dashed var(--line);
+  }
+  .brand{ display:flex; align-items:center; gap: 14px; }
+  .peg-mark{ width: 46px; height: 46px; flex: none; }
+  h1{
+    font-family: 'Baloo 2', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: 34px;
+    letter-spacing: 0.2px;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .tag{
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    margin-top: 3px;
+    max-width: 46ch;
+  }
+  .board-size-note{
+    font-family: 'Space Mono', monospace;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    text-align: right;
+    line-height: 1.6;
+  }
+  .board-size-note b{ color: var(--ink); }
+
+  .steps{
+    display: flex;
+    gap: 10px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+  }
+  .step-chip{
+    display:flex;
+    align-items:center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    padding: 7px 14px 7px 8px;
+    border-radius: 999px;
+  }
+  .step-chip .num{
+    width: 20px; height: 20px;
+    border-radius: 999px;
+    background: var(--line);
+    color: var(--paper);
+    display:flex; align-items:center; justify-content:center;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+  }
+  .step-chip.active{ color: var(--ink); border-color: var(--accent); }
+  .step-chip.active .num{ background: var(--accent); color: var(--accent-ink); }
+  .step-chip.done .num{ background: var(--accent2); color: var(--accent-ink); }
+
+  .layout{
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 22px;
+    align-items: start;
+  }
+  @media (max-width: 860px){
+    .layout{ grid-template-columns: 1fr; }
+  }
+
+  .panel{
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: 0 2px 0 var(--shadow);
+  }
+  .panel + .panel{ margin-top: 18px; }
+  .panel h2{
+    font-family: 'Baloo 2', system-ui, sans-serif;
+    font-size: 16.5px;
+    font-weight: 700;
+    margin: 0 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel h2 .dot{
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--accent);
+    flex: none;
+  }
+
+  .dropzone{
+    border: 2px dashed var(--line);
+    border-radius: 12px;
+    padding: 22px 14px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease;
+    background: color-mix(in srgb, var(--paper) 55%, transparent);
+  }
+  .dropzone:hover, .dropzone.drag{
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--paper));
+  }
+  .dropzone svg{ width: 30px; height: 30px; color: var(--ink-soft); margin-bottom: 8px; }
+  .dropzone p{ margin: 0; font-size: 13.5px; color: var(--ink-soft); }
+  .dropzone strong{ color: var(--ink); }
+  .dropzone input{ display:none; }
+  .thumb-row{
+    display:flex; align-items:center; gap: 10px; margin-top: 12px;
+  }
+  .thumb-row img{
+    width: 52px; height: 52px; object-fit: cover; border-radius: 8px;
+    border: 1px solid var(--line);
+  }
+  .thumb-row .meta{ font-size: 12.5px; color: var(--ink-soft); }
+  .thumb-row .meta b{ color: var(--ink); font-family: 'Space Mono', monospace; font-weight: 400; }
+
+  .field{ margin-bottom: 14px; }
+  .field:last-child{ margin-bottom: 0; }
+  .field label{
+    display:block; font-size: 12.5px; font-weight: 600;
+    color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+  .dims{ display:flex; align-items:center; gap: 8px; }
+  .dims input[type=number]{
+    width: 100%;
+    font-family: 'Space Mono', monospace;
+    font-size: 15px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .dims input[type=number]:focus, button:focus-visible, .dropzone:focus-visible{
+    outline: 2px solid var(--focus); outline-offset: 1px;
+  }
+  .link-btn{
+    flex: none;
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink-soft);
+    cursor: pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .link-btn.active{ background: var(--accent2); color: var(--accent-ink); border-color: var(--accent2); }
+  .link-btn svg{ width: 16px; height: 16px; }
+
+  .presets{ display:flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .preset-btn{
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 7px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .preset-btn:hover{ border-color: var(--accent); color: var(--ink); }
+  .preset-btn.active{ background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  .field label.check-label{
+    display:flex; align-items:center; gap: 8px;
+    font-size: 13px; font-weight: 600; color: var(--ink);
+    text-transform: none; letter-spacing: normal;
+    cursor: pointer; margin-bottom: 0;
+  }
+  .check-label input{ accent-color: var(--accent2); width:15px; height:15px; }
+  .seg{
+    display: flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden;
+  }
+  .seg button{
+    flex: 1; padding: 8px 6px; font-size: 13px; font-weight: 600;
+    background: var(--paper); color: var(--ink-soft); border: none; cursor: pointer;
+    border-right: 1px solid var(--line);
+  }
+  .seg button:last-child{ border-right: none; }
+  .seg button.active{ background: var(--accent); color: var(--accent-ink); }
+
+  .range-row{ display:flex; align-items:center; gap: 10px; }
+  .range-row input[type=range]{ flex:1; accent-color: var(--accent); }
+  .range-row output{
+    font-family: 'Space Mono', monospace; font-size: 13px; width: 34px; text-align:right; color: var(--ink-soft);
+  }
+
+  .stage{
+    display:flex; flex-direction: column; gap: 18px;
+  }
+  .stage-empty{
+    border: 2px dashed var(--line);
+    border-radius: 16px;
+    padding: 70px 20px;
+    text-align: center;
+    color: var(--ink-soft);
+  }
+  .stage-empty svg{ width: 40px; height:40px; margin-bottom: 10px; }
+  .stage-empty p{ margin: 4px 0; font-size: 14px; }
+  .stage-empty .big{ font-family:'Baloo 2',sans-serif; font-size: 19px; color: var(--ink); font-weight: 700; }
+
+  .canvas-panel{
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: 0 2px 0 var(--shadow);
+  }
+  .canvas-toolbar{
+    display:flex; align-items:center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .canvas-toolbar h2{
+    font-family:'Baloo 2',sans-serif; font-size: 17px; margin:0; font-weight: 700;
+  }
+  .canvas-toolbar .sub{ font-size: 12.5px; color: var(--ink-soft); font-family:'Space Mono',monospace; }
+  .save-btn{
+    display:flex; align-items:center; gap: 7px;
+    font-family: 'Work Sans', sans-serif;
+    font-size: 13.5px; font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 9px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: var(--accent-ink);
+    cursor: pointer;
+    flex: none;
+    transition: transform .1s ease;
+  }
+  .save-btn svg{ width: 15px; height: 15px; }
+  .save-btn:hover{ transform: translateY(-1px); }
+  .save-btn:disabled{ opacity: 0.6; cursor: default; transform:none; }
+  .save-btn.done{ background: var(--accent2); border-color: var(--accent2); }
+  .canvas-frame{
+    display:flex; justify-content:center; align-items:center;
+    background:
+      linear-gradient(45deg, color-mix(in srgb, var(--line) 35%, transparent) 25%, transparent 25%) -8px 0/16px 16px,
+      linear-gradient(-45deg, color-mix(in srgb, var(--line) 35%, transparent) 25%, transparent 25%) -8px 0/16px 16px,
+      var(--paper);
+    border-radius: 12px;
+    padding: 18px;
+    overflow: auto;
+  }
+  #patternCanvas{ display:block; image-rendering: pixelated; border-radius: 4px; }
+  .canvas-hint{
+    margin-top: 10px; font-size: 12px; color: var(--ink-soft); text-align:center;
+  }
+
+  .materials{
+    margin-top: 18px;
+  }
+  .materials-head{
+    display:flex; align-items:baseline; justify-content: space-between; margin-bottom: 10px; flex-wrap:wrap; gap:8px;
+  }
+  .materials-head h2{ font-family:'Baloo 2',sans-serif; font-size: 17px; margin:0; }
+  .materials-head .total{
+    font-family:'Space Mono',monospace; font-size: 13px; color: var(--ink-soft);
+  }
+  .materials-head .total b{ color: var(--ink); font-size: 15px; }
+  table.legend{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  table.legend th{
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    font-weight: 600;
+    padding: 0 8px 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.legend th.num, table.legend td.num{ text-align: right; }
+  table.legend td{
+    padding: 7px 8px;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+    vertical-align: middle;
+  }
+  table.legend tr:last-child td{ border-bottom: none; }
+  .swatch{
+    width: 22px; height: 22px; border-radius: 7px;
+    display: inline-block;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.12), inset 0 -3px 4px rgba(0,0,0,0.15), inset 0 2px 3px rgba(255,255,255,0.35);
+    vertical-align: middle;
+  }
+  .sym{
+    font-family:'Space Mono',monospace;
+    font-weight: 700;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+  }
+  td.name{ font-weight: 600; }
+  td.hex, td.num{ font-family:'Space Mono',monospace; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+  .credit{
+    margin-top: 30px; font-size: 12px; color: var(--ink-soft); text-align:center;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <svg class="peg-mark" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="1" y="1" width="44" height="44" rx="8" fill="var(--paper-raised)" stroke="var(--line)" stroke-width="2"/>
+        <circle cx="13" cy="13" r="5" fill="var(--accent)"/>
+        <circle cx="33" cy="13" r="5" fill="var(--highlight)"/>
+        <circle cx="13" cy="33" r="5" fill="var(--accent2)"/>
+        <circle cx="33" cy="33" r="5" fill="var(--ink)"/>
+      </svg>
+      <div>
+        <h1>Fuse Bead Studio</h1>
+        <p class="tag">Drop in a photo, pick a pegboard size, and get a real fuse&#8209;bead pattern &mdash; matched to colors you can actually buy.</p>
+      </div>
+    </div>
+    <div class="board-size-note">
+      standard pegboard &mdash; <b>29 &times; 29</b> pegs<br>
+      this pattern &mdash; <b id="dimNote">29 &times; 29</b> pegs
+    </div>
+  </header>
+
+  <div class="steps">
+    <div class="step-chip" id="chip1"><span class="num">1</span> Upload a photo</div>
+    <div class="step-chip" id="chip2"><span class="num">2</span> Set the board size</div>
+    <div class="step-chip" id="chip3"><span class="num">3</span> Read the pattern</div>
+  </div>
+
+  <div class="layout">
+
+    <!-- LEFT: controls -->
+    <div class="controls">
+
+      <div class="panel">
+        <h2><span class="dot"></span>Photo</h2>
+        <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload a photo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          <p><strong>Click to upload</strong> or drag a PNG/JPG here</p>
+          <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/gif">
+        </div>
+        <div class="thumb-row" id="thumbRow" hidden>
+          <img id="thumbImg" alt="Uploaded photo preview">
+          <div class="meta">Loaded &mdash; <b id="thumbDims">0 &times; 0 px</b></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2><span class="dot"></span>Board size</h2>
+        <div class="field">
+          <label for="colsInput">Pegs across &times; down</label>
+          <div class="dims">
+            <input type="number" id="colsInput" min="4" max="120" value="29">
+            <button class="link-btn active" id="lockAspect" title="Lock to photo's aspect ratio" aria-pressed="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 11V7a4 4 0 1 1 8 0v4"/><rect x="5" y="11" width="14" height="10" rx="2"/></svg>
+            </button>
+            <input type="number" id="rowsInput" min="4" max="120" value="29">
+          </div>
+        </div>
+        <div class="presets" id="presets">
+          <button class="preset-btn" data-size="16">16&times;16 mini</button>
+          <button class="preset-btn active" data-size="29">29&times;29 standard</button>
+          <button class="preset-btn" data-size="48">48&times;48 large</button>
+          <button class="preset-btn" data-size="58">58&times;58 double</button>
+        </div>
+        <div class="field" style="margin-top:14px;">
+          <label>Fit</label>
+          <div class="seg">
+            <button id="fitCover" class="active">Crop to fill</button>
+            <button id="fitStretch">Stretch</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="check-label">
+            <input type="checkbox" id="trimToggle" checked>
+            Trim transparent margin
+          </label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2><span class="dot"></span>Palette</h2>
+        <div class="field">
+          <label for="paletteSize">Colors to use <span id="paletteCountLabel"></span></label>
+          <div class="range-row">
+            <input type="range" id="paletteSize" min="4" max="221" value="221">
+            <output id="paletteSizeOut">221</output>
+          </div>
+        </div>
+        <div class="field">
+          <label>Chart style</label>
+          <div class="seg">
+            <button id="viewColor" class="active">Bead color + symbol</button>
+            <button id="viewSymbol">Printable symbols only</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: stage -->
+    <div class="stage">
+
+      <div class="stage-empty" id="stageEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        <p class="big">Your pegboard is empty</p>
+        <p>Upload a photo on the left to see it turned into a bead-by-bead pattern.</p>
+      </div>
+
+      <div id="stageFull" hidden>
+        <div class="canvas-panel">
+          <div class="canvas-toolbar">
+            <div>
+              <h2 id="canvasTitle">Pattern chart</h2>
+              <div class="sub"><span id="dimsSub">29 &times; 29</span> &middot; <span id="colorsUsedSub">0 colors</span></div>
+            </div>
+            <button id="saveImageBtn" class="save-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+              Save image
+            </button>
+          </div>
+          <div class="canvas-frame">
+            <canvas id="patternCanvas"></canvas>
+          </div>
+          <p class="canvas-hint" id="canvasHint">Saves the chart exactly as shown, at full resolution.</p>
+        </div>
+
+        <div class="panel materials">
+          <div class="materials-head">
+            <h2>Bead order</h2>
+            <div class="total"><b id="totalBeads">0</b> beads &middot; <span id="totalColors">0</span> colors</div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="legend">
+              <thead>
+                <tr><th></th><th>Code</th><th>Hex</th><th class="num">Count</th></tr>
+              </thead>
+              <tbody id="legendBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <p class="credit">Palette codes match a 221-color fuse bead assortment (A/B/C/D/E/F/G/H/M series) &mdash; hex values are a close visual read of the seller's swatch chart, not lab-measured.</p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---- Bead palette: 221-color assortment, read from the seller's swatch chart ----
+  // Codes match the store's own SKUs (A/B/C/D/E/F/G/H/M families) so the order list is orderable as-is.
+  // Hex values are a careful visual read of the reference chart, not manufacturer-issued codes.
+  const PALETTE = [
+    ["B3","#4caf50"], ["C3","#29b6d6"], ["D9","#b39ddb"], ["E2","#f48fb1"], ["G1","#f4a13b"], ["A6","#f2c230"],
+    ["B5","#3e9142"], ["C5","#2e86d6"], ["D6","#7e57c2"], ["E4","#ef6c4a"], ["G5","#b06a3d"], ["A4","#f0c24a"],
+    ["B8","#2e6b32"], ["C8","#1f4e96"], ["D7","#5c3c8c"], ["F5","#d3382e"], ["G7","#7a4b2e"], ["A7","#5c4326"],
+    ["H1","#fbf8f2"], ["H2","#f2ede2"], ["H3","#c9c2b5"], ["H4","#9c948a"], ["H5","#5a5350"], ["H7","#201d1b"],
+
+    ["C2","#a9dcee"], ["C13","#4e9fd6"], ["D19","#9a7fc2"], ["E8","#d6519e"], ["A13","#f4c79a"], ["A11","#ee9a45"],
+    ["C10","#3e7fc2"], ["C6","#3763b0"], ["D18","#a63e96"], ["E3","#d6303a"], ["A10","#e67e33"], ["G9","#9c5a2e"],
+    ["C11","#2e5ca0"], ["C7","#4e4e9e"], ["D21","#b0308e"], ["D13","#86304e"], ["F13","#c22a2e"], ["G13","#6b3e28"],
+    ["B12","#1e4e36"], ["D3","#4e2e6b"], ["D15","#6b1f44"], ["E7","#8c2027"], ["F8","#6e1e20"], ["G8","#4a2e1e"],
+
+    ["A3","#c8d64a"], ["B20","#3eb6a0"], ["D16","#c7b3e0"], ["D8","#9a6bc2"], ["E1","#f2a8c2"], ["G2","#ee8a3d"],
+    ["B18","#4eae5a"], ["B10","#2e9e8a"], ["D11","#8a5cc2"], ["D12","#a64ebe"], ["E12","#e0509e"], ["G3","#e67a2e"],
+    ["B14","#2e8a4a"], ["B19","#2e8e76"], ["D2","#6b3ea0"], ["D20","#9e2e7a"], ["E5","#e0709e"], ["F10","#a62e30"],
+    ["B17","#1e5e30"], ["B7","#1e5e5a"], ["C16","#2e4e9e"], ["D14","#4e1e6b"], ["E13","#8a2e5a"], ["F7","#7a1f22"],
+
+    ["E11","#f2a8b8"], ["E14","#ee8fa8"], ["F1","#e0525a"], ["A14","#d6a878"], ["M6","#8a6248"], ["M5","#6e4e38"],
+    ["E15","#ee7a96"], ["F14","#d6303e"], ["F9","#c22530"], ["F2","#a81e28"], ["G14","#7a4a2e"], ["M9","#4a3222"],
+    ["E9","#f0b8c4"], ["E6","#e67a96"], ["F12","#b82530"], ["F3","#861e22"], ["F11","#6b1a1e"], ["M12","#38241a"],
+    ["D5","#6b4e9e"], ["E10","#e0a0b8"], ["F4","#96222a"], ["F6","#6e1a1e"], ["G17","#4a3020"], ["H6","#2a2622"],
+
+    ["A15","#f2c49e"], ["A5","#f2cc3e"], ["A8","#c8d65a"], ["A12","#f0a85e"], ["A9","#ee8a6e"], ["G6","#8a5a38"],
+    ["A1","#fbf3d6"], ["B13","#8abe6e"], ["B1","#6bb84e"], ["B2","#4eae4a"], ["B4","#3e9e5a"], ["B11","#2e9e8e"],
+    ["H12","#d6d0c4"], ["C1","#b8dcee"], ["B16","#7ece7a"], ["B6","#3e8e4e"], ["C15","#2e8e86"], ["B15","#1e6e5e"],
+    ["C14","#a8d4ee"], ["D17","#8a6ebe"], ["D1","#c4b0e0"], ["C4","#4e86d6"], ["C17","#2e5eae"], ["C9","#1e3e7e"],
+
+    ["H8","#d6d0c4"], ["G15","#d6b896"], ["A2","#f2e4a8"], ["H13","#b8b0a2"], ["G16","#b88a5e"], ["H9","#9c948a"],
+    ["H10","#c4bcb0"], ["M1","#6e6a5a"], ["G11","#c49a6e"], ["G4","#9e6a3e"], ["M4","#7a5a3e"], ["H14","#7a726a"],
+    ["M10","#8a7a66"], ["M2","#4e4a42"], ["G12","#b0824e"], ["M13","#5e4230"], ["M7","#6e4e32"], ["H11","#5a544c"],
+    ["M11","#7a6a56"], ["M3","#3a3630"], ["G10","#8a6440"], ["M14","#4a3826"], ["M8","#5a4028"], ["M15","#2e2620"],
+
+    ["H17","#fcfaf5"], ["H18","#f6f2e8"], ["H19","#ede2de"], ["E16","#f2c4d0"], ["F16","#eeb0bc"], ["F17","#e89cac"],
+    ["D23","#e4d8ee"], ["E24","#f2b8c8"], ["E19","#eea6bc"], ["E18","#e890ac"], ["E17","#e27c9c"], ["E20","#dc688c"],
+    ["B24","#dce8d4"], ["A16","#e4c8a0"], ["A17","#dcb888"], ["A18","#d2a470"], ["F24","#8a2a30"], ["F23","#7a2228"],
+    ["A24","#f2ecc8"], ["A22","#e8d0a0"], ["A21","#dcc090"], ["F21","#b0323a"], ["F22","#9e2a32"], ["A19","#cca878"],
+
+    ["A26","#f6efc8"], ["A25","#f2e080"], ["A20","#eed058"], ["A23","#e8be4a"], ["G18","#c89a5e"], ["H21","#d6d2c8"],
+    ["B26","#a6a048"], ["B32","#c8d25a"], ["B31","#e0d858"], ["B30","#eee8a0"], ["B27","#e4dc66"], ["B29","#c4ce5e"],
+    ["C22","#a8aca8"], ["C23","#b8bab4"], ["C24","#c4c4be"], ["B28","#d8dca8"], ["C25","#a0ac9c"], ["C27","#c8ccc0"],
+    ["H15","#b0aea6"], ["H20","#a6a49c"], ["H23","#9c9a92"], ["H22","#b6b4ac"], ["C28","#acb0a6"], ["C21","#9aa0a0"],
+
+    ["F15","#c22e32"], ["F19","#d6522e"], ["G20","#c87a3e"], ["E21","#eaaabe"], ["E22","#e89cb4"], ["D26","#c68ca0"],
+    ["F25","#96222a"], ["F20","#b02a2e"], ["G19","#9c5e32"], ["F18","#c43a32"], ["G21","#8a5230"], ["E23","#de84a2"],
+    ["D25","#7a4e8e"], ["D22","#8e5aa0"], ["D24","#9e6eae"], ["C20","#3e6eb0"], ["B21","#2e8e7e"], ["B25","#3e9e5e"],
+    ["H16","#4a463e"], ["B23","#1e5e3a"], ["C18","#2e5ea0"], ["B22","#1e7a6e"], ["C19","#2e4e8e"], ["C26","#8a8e88"],
+
+    ["B9","#1a3a24"], ["C12","#16264a"], ["C29","#10182e"], ["D4","#1e1e4a"], ["D10","#2a1e4a"]
+  ].map(([code, hex]) => ({code, hex, rgb: hexToRgb(hex)}));
+
+  function hexToRgb(hex){
+    const n = parseInt(hex.slice(1), 16);
+    return [(n>>16)&255, (n>>8)&255, n&255];
+  }
+  function colorDistance(a, b){
+    const rmean = (a[0]+b[0]) / 2;
+    const dr = a[0]-b[0], dg = a[1]-b[1], db = a[2]-b[2];
+    return Math.sqrt((2 + rmean/256)*dr*dr + 4*dg*dg + (2 + (255-rmean)/256)*db*db);
+  }
+  // ---- State ----
+  let img = null;
+  let trimBox = null;   // {x,y,w,h} bounding box of non-transparent content, in natural px
+  let trimEnabled = true;
+  let aspectLocked = true;
+  let fitMode = "cover";
+  let viewMode = "color";
+  let activePalette = PALETTE;
+
+  function sourceRect(){
+    if (!img) return null;
+    if (trimEnabled && trimBox) return trimBox;
+    return {x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight};
+  }
+
+  // Finds the bounding box of non-transparent pixels so blank PNG margins
+  // don't get counted as "board" — scans a downscaled copy for speed.
+  function detectTrimBox(image){
+    const maxDim = 500;
+    const scale = Math.min(1, maxDim / Math.max(image.naturalWidth, image.naturalHeight));
+    const w = Math.max(1, Math.round(image.naturalWidth * scale));
+    const h = Math.max(1, Math.round(image.naturalHeight * scale));
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const cctx = c.getContext('2d');
+    cctx.drawImage(image, 0, 0, w, h);
+    const data = cctx.getImageData(0, 0, w, h).data;
+    let minX = w, minY = h, maxX = -1, maxY = -1;
+    for (let y = 0; y < h; y++){
+      for (let x = 0; x < w; x++){
+        if (data[(y*w+x)*4+3] > 10){
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0) return null;
+    const inv = 1 / scale;
+    return {
+      x: Math.floor(minX * inv),
+      y: Math.floor(minY * inv),
+      w: Math.ceil((maxX - minX + 1) * inv),
+      h: Math.ceil((maxY - minY + 1) * inv)
+    };
+  }
+
+  // ---- Elements ----
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const thumbRow = document.getElementById('thumbRow');
+  const thumbImg = document.getElementById('thumbImg');
+  const thumbDims = document.getElementById('thumbDims');
+  const colsInput = document.getElementById('colsInput');
+  const rowsInput = document.getElementById('rowsInput');
+  const lockAspect = document.getElementById('lockAspect');
+  const presets = document.getElementById('presets');
+  const fitCover = document.getElementById('fitCover');
+  const fitStretch = document.getElementById('fitStretch');
+  const trimToggle = document.getElementById('trimToggle');
+  const viewColorBtn = document.getElementById('viewColor');
+  const viewSymbolBtn = document.getElementById('viewSymbol');
+  const paletteSize = document.getElementById('paletteSize');
+  const paletteSizeOut = document.getElementById('paletteSizeOut');
+  const paletteCountLabel = document.getElementById('paletteCountLabel');
+  const stageEmpty = document.getElementById('stageEmpty');
+  const stageFull = document.getElementById('stageFull');
+  const canvas = document.getElementById('patternCanvas');
+  const ctx = canvas.getContext('2d');
+  const dimsSub = document.getElementById('dimsSub');
+  const dimNote = document.getElementById('dimNote');
+  const colorsUsedSub = document.getElementById('colorsUsedSub');
+  const legendBody = document.getElementById('legendBody');
+  const totalBeads = document.getElementById('totalBeads');
+  const totalColors = document.getElementById('totalColors');
+  const chip1 = document.getElementById('chip1');
+  const chip2 = document.getElementById('chip2');
+  const chip3 = document.getElementById('chip3');
+  const saveImageBtn = document.getElementById('saveImageBtn');
+  const canvasHint = document.getElementById('canvasHint');
+
+  // ---- Save-to-device (falls back to a hint if the host can't offer it) ----
+  const downloadsReady = (window.claude && typeof window.claude.use === 'function')
+    ? window.claude.use('downloads')
+    : Promise.resolve(null);
+
+  function flashHint(msg, ms){
+    canvasHint.textContent = msg;
+    if (ms) setTimeout(() => { canvasHint.textContent = 'Saves the chart exactly as shown, at full resolution.'; }, ms);
+  }
+
+  saveImageBtn.addEventListener('click', async () => {
+    if (!lastGrid) return;
+    const downloads = await downloadsReady;
+    if (!downloads){
+      flashHint('Saving isn’t available here — right-click (or long-press) the chart and choose Save Image instead.');
+      return;
+    }
+    saveImageBtn.disabled = true;
+    canvas.toBlob(async (blob) => {
+      if (!blob){ saveImageBtn.disabled = false; return; }
+      try{
+        await downloads.save({ filename: 'fuse-bead-pattern.png', data: blob });
+        saveImageBtn.classList.add('done');
+        const label = saveImageBtn.lastChild;
+        const prev = label.textContent;
+        label.textContent = ' Saved!';
+        setTimeout(() => { label.textContent = prev; saveImageBtn.classList.remove('done'); }, 1800);
+      } catch (err){
+        if (!err || err.code !== 'declined'){
+          flashHint('Couldn’t save right now — try again, or right-click the chart to save it that way.', 4000);
+        }
+      } finally {
+        saveImageBtn.disabled = false;
+      }
+    }, 'image/png');
+  });
+
+  paletteSizeOut.textContent = paletteSize.value;
+  paletteCountLabel.textContent = "(" + paletteSize.value + " of " + PALETTE.length + ")";
+
+  // ---- Upload handling ----
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+  ['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('drag'); }));
+  dropzone.addEventListener('drop', e => {
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFile(f);
+  });
+  fileInput.addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if (f) loadFile(f);
+  });
+
+  function loadFile(file){
+    if (!file.type.startsWith('image/')) return;
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => {
+      img = im;
+      trimBox = detectTrimBox(im);
+      thumbImg.src = url;
+      thumbDims.textContent = im.naturalWidth + " × " + im.naturalHeight + " px";
+      thumbRow.hidden = false;
+      if (aspectLocked) syncAspect('cols');
+      chip1.classList.add('done');
+      chip2.classList.add('active');
+      render();
+    };
+    im.src = url;
+  }
+
+  // ---- Dimension controls ----
+  function syncAspect(from){
+    if (!aspectLocked || !img) return;
+    const rect = sourceRect();
+    const ratio = rect.w / rect.h;
+    if (from === 'cols'){
+      rowsInput.value = Math.max(4, Math.round(parseInt(colsInput.value||29) / ratio));
+    } else {
+      colsInput.value = Math.max(4, Math.round(parseInt(rowsInput.value||29) * ratio));
+    }
+  }
+  colsInput.addEventListener('input', () => { syncAspect('cols'); clearPresetActive(); render(); });
+  rowsInput.addEventListener('input', () => { syncAspect('rows'); clearPresetActive(); render(); });
+  lockAspect.addEventListener('click', () => {
+    aspectLocked = !aspectLocked;
+    lockAspect.classList.toggle('active', aspectLocked);
+    lockAspect.setAttribute('aria-pressed', String(aspectLocked));
+    if (aspectLocked) syncAspect('cols');
+    render();
+  });
+  function clearPresetActive(){
+    presets.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  }
+  presets.addEventListener('click', e => {
+    const btn = e.target.closest('.preset-btn');
+    if (!btn) return;
+    clearPresetActive();
+    btn.classList.add('active');
+    const size = parseInt(btn.dataset.size);
+    colsInput.value = size;
+    if (aspectLocked) syncAspect('cols'); else rowsInput.value = size;
+    render();
+  });
+
+  fitCover.addEventListener('click', () => { fitMode = 'cover'; fitCover.classList.add('active'); fitStretch.classList.remove('active'); render(); });
+  fitStretch.addEventListener('click', () => { fitMode = 'stretch'; fitStretch.classList.add('active'); fitCover.classList.remove('active'); render(); });
+  trimToggle.addEventListener('change', () => {
+    trimEnabled = trimToggle.checked;
+    if (aspectLocked) syncAspect('cols');
+    render();
+  });
+  viewColorBtn.addEventListener('click', () => { viewMode = 'color'; viewColorBtn.classList.add('active'); viewSymbolBtn.classList.remove('active'); drawFromCache(); });
+  viewSymbolBtn.addEventListener('click', () => { viewMode = 'symbol'; viewSymbolBtn.classList.add('active'); viewColorBtn.classList.remove('active'); drawFromCache(); });
+  paletteSize.addEventListener('input', () => {
+    paletteSizeOut.textContent = paletteSize.value;
+    paletteCountLabel.textContent = "(" + paletteSize.value + " of " + PALETTE.length + ")";
+    activePalette = PALETTE.slice(0, parseInt(paletteSize.value));
+    render();
+  });
+
+  // ---- Core pipeline ----
+  let lastGrid = null; // {cols, rows, cells: [{idx}], colorsUsed: [{...}]}
+
+  function render(){
+    if (!img) return;
+    const cols = Math.max(4, Math.min(120, parseInt(colsInput.value) || 29));
+    const rows = Math.max(4, Math.min(120, parseInt(rowsInput.value) || 29));
+
+    const off = document.createElement('canvas');
+    off.width = cols; off.height = rows;
+    const octx = off.getContext('2d');
+    octx.imageSmoothingEnabled = true;
+
+    const rect = sourceRect();
+    if (fitMode === 'cover'){
+      const targetRatio = cols / rows;
+      const srcRatio = rect.w / rect.h;
+      let sx, sy, sw, sh;
+      if (srcRatio > targetRatio){
+        sh = rect.h;
+        sw = sh * targetRatio;
+        sx = rect.x + (rect.w - sw) / 2;
+        sy = rect.y;
+      } else {
+        sw = rect.w;
+        sh = sw / targetRatio;
+        sx = rect.x;
+        sy = rect.y + (rect.h - sh) / 2;
+      }
+      octx.drawImage(img, sx, sy, sw, sh, 0, 0, cols, rows);
+    } else {
+      octx.drawImage(img, rect.x, rect.y, rect.w, rect.h, 0, 0, cols, rows);
+    }
+
+    const data = octx.getImageData(0, 0, cols, rows).data;
+    const counts = new Map();
+    const cellIdx = new Int16Array(cols * rows);
+
+    for (let i = 0; i < cols * rows; i++){
+      const r = data[i*4], g = data[i*4+1], b = data[i*4+2], a = data[i*4+3];
+      if (a < 128){ cellIdx[i] = -1; continue; }
+      let best = 0, bestDist = Infinity;
+      for (let p = 0; p < activePalette.length; p++){
+        const d = colorDistance([r,g,b], activePalette[p].rgb);
+        if (d < bestDist){ bestDist = d; best = p; }
+      }
+      cellIdx[i] = best;
+      counts.set(best, (counts.get(best)||0) + 1);
+    }
+
+    const usedEntries = [...counts.entries()]
+      .map(([idx, count]) => ({idx, count, ...activePalette[idx]}))
+      .sort((a,b) => b.count - a.count);
+    const codeByIdx = new Map(usedEntries.map(e => [e.idx, e.code]));
+
+    lastGrid = {cols, rows, cellIdx, usedEntries, codeByIdx};
+
+    stageEmpty.hidden = true;
+    stageFull.hidden = false;
+    chip2.classList.add('done');
+    chip3.classList.add('active');
+    dimNote.textContent = cols + " × " + rows;
+    dimsSub.textContent = cols + " × " + rows;
+    colorsUsedSub.textContent = usedEntries.length + (usedEntries.length===1 ? " color" : " colors");
+    totalBeads.textContent = (cols*rows).toLocaleString();
+    totalColors.textContent = usedEntries.length;
+
+    buildLegend(usedEntries);
+    drawFromCache();
+  }
+
+  function buildLegend(entries){
+    legendBody.innerHTML = "";
+    for (const e of entries){
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><span class="swatch" style="background:' + e.hex + '"></span></td>' +
+        '<td class="name">' + e.code + '</td>' +
+        '<td class="hex">' + e.hex + '</td>' +
+        '<td class="num">' + e.count.toLocaleString() + '</td>';
+      legendBody.appendChild(tr);
+    }
+  }
+
+  function drawFromCache(){
+    if (!lastGrid) return;
+    const {cols, rows, cellIdx, codeByIdx} = lastGrid;
+    const dpr = window.devicePixelRatio || 1;
+    const maxStagePx = Math.min(760, document.querySelector('.canvas-frame').clientWidth - 36 || 640);
+    let cell = Math.floor(maxStagePx / cols);
+    cell = Math.max(20, Math.min(36, cell));
+    const w = cols * cell, h = rows * cell;
+
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    // Fixed "pegboard" colors, independent of the page's light/dark theme —
+    // a mid warm-gray board keeps both near-white and near-black beads visible,
+    // which a white or black backdrop can't do at once.
+    const bg = '#5c5548';
+    const inkSoft = '#efe9db';
+    const line = 'rgba(255,255,255,0.16)';
+
+    for (let ry = 0; ry < rows; ry++){
+      for (let rx = 0; rx < cols; rx++){
+        const idx = cellIdx[ry*cols+rx];
+        const x = rx*cell, y = ry*cell;
+        if (idx === -1){
+          ctx.fillStyle = bg;
+          ctx.fillRect(x, y, cell, cell);
+          continue;
+        }
+        const entry = activePalette[idx];
+        if (viewMode === 'color'){
+          const pad = Math.max(0.5, cell*0.06);
+          const r = Math.max(2, cell*0.28);
+          roundRect(ctx, x+pad, y+pad, cell-pad*2, cell-pad*2, r);
+          const grad = ctx.createRadialGradient(x+cell*0.35, y+cell*0.32, cell*0.06, x+cell*0.5, y+cell*0.5, cell*0.75);
+          grad.addColorStop(0, lighten(entry.hex, 0.30));
+          grad.addColorStop(1, entry.hex);
+          ctx.fillStyle = grad;
+          ctx.fill();
+          ctx.lineWidth = Math.max(0.75, cell*0.035);
+          ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+          ctx.stroke();
+
+          const label = codeByIdx.get(idx);
+          if (label && cell >= 16){
+            const scale = label.length >= 3 ? 0.30 : 0.38;
+            ctx.font = "bold " + Math.max(7, cell*scale) + "px 'Space Mono', monospace";
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.lineWidth = Math.max(1.5, cell*0.08);
+            ctx.strokeStyle = contrastColor(entry.hex, true);
+            ctx.strokeText(label, x+cell/2, y+cell/2+0.5);
+            ctx.fillStyle = contrastColor(entry.hex, false);
+            ctx.fillText(label, x+cell/2, y+cell/2+0.5);
+          }
+        } else {
+          ctx.fillStyle = bg;
+          ctx.fillRect(x, y, cell, cell);
+          ctx.strokeStyle = line;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x+0.5, y+0.5, cell-1, cell-1);
+          if (cell >= 14){
+            const label = codeByIdx.get(idx);
+            const scale = label.length >= 3 ? 0.32 : 0.42;
+            ctx.fillStyle = inkSoft;
+            ctx.font = Math.max(7, cell*scale) + "px 'Space Mono', monospace";
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, x+cell/2, y+cell/2+0.5);
+          }
+        }
+      }
+    }
+
+    // emphasize every 10th grid line for counting, like a craft chart
+    ctx.strokeStyle = line;
+    for (let gx = 0; gx <= cols; gx += 10){
+      ctx.lineWidth = gx===0||gx===cols ? 1 : 1.4;
+      ctx.beginPath(); ctx.moveTo(gx*cell+0.5, 0); ctx.lineTo(gx*cell+0.5, h); ctx.stroke();
+    }
+    for (let gy = 0; gy <= rows; gy += 10){
+      ctx.lineWidth = gy===0||gy===rows ? 1 : 1.4;
+      ctx.beginPath(); ctx.moveTo(0, gy*cell+0.5); ctx.lineTo(w, gy*cell+0.5); ctx.stroke();
+    }
+  }
+
+  function roundRect(c, x, y, w, h, r){
+    c.beginPath();
+    c.moveTo(x+r, y);
+    c.arcTo(x+w, y, x+w, y+h, r);
+    c.arcTo(x+w, y+h, x, y+h, r);
+    c.arcTo(x, y+h, x, y, r);
+    c.arcTo(x, y, x+w, y, r);
+    c.closePath();
+  }
+  function lighten(hex, amt){
+    const [r,g,b] = hexToRgb(hex);
+    const L = (v) => Math.round(v + (255-v)*amt);
+    return "rgb(" + L(r) + "," + L(g) + "," + L(b) + ")";
+  }
+  function contrastColor(hex, isOutline){
+    const [r,g,b] = hexToRgb(hex);
+    const luminance = 0.2126*r + 0.7152*g + 0.0722*b;
+    const dark = luminance > 150;
+    if (isOutline) return dark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.55)";
+    return dark ? "#2b241c" : "#fdf8ec";
+  }
+
+  window.addEventListener('resize', () => { if (lastGrid) drawFromCache(); });
+})();
+</script>
+</body>
+</html>
