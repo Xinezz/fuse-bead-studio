@@ -8,6 +8,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Work+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap">
+<!-- Remote control (GitHub Pages copy only — the Claude artifact sandbox blocks
+     outbound WebSocket connections, so this quietly no-ops with a "Connection
+     error" status there instead of actually pairing devices). -->
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/lib/browser.min.js"></script>
 <style>
   :root{
     --paper: #f3ecdd;
@@ -448,6 +453,76 @@
     margin-top: 30px; font-size: 12px; color: var(--ink-soft); text-align:center;
   }
 
+  /* ---- Remote control panel (host device) ---- */
+  .remote-code-row{
+    display:flex; align-items:center; justify-content:space-between;
+    margin: 4px 0 12px;
+  }
+  .remote-code{
+    font-family:'Space Mono',monospace; font-size: 20px; font-weight:700;
+    letter-spacing: 0.08em; color: var(--ink);
+  }
+  .remote-status{
+    font-size: 11.5px; font-weight:600; color: var(--ink-soft);
+    padding: 4px 10px; border-radius: 999px; background: var(--paper);
+    border: 1px solid var(--line);
+  }
+  .remote-status.live{ color: var(--accent2); border-color: var(--accent2); }
+  .remote-status.error{ color: var(--danger); border-color: var(--danger); }
+  .remote-share{ display:flex; gap: 12px; align-items:flex-start; margin-bottom: 10px; }
+  .remote-share canvas{
+    border-radius: 8px; border: 1px solid var(--line); background: var(--paper-raised); flex:none;
+  }
+  .remote-share-actions{ flex:1; display:flex; flex-direction:column; gap: 6px; min-width:0; }
+  #remoteLinkInput{
+    width:100%; font-family:'Space Mono',monospace; font-size: 11px;
+    padding: 7px 8px; border-radius: 7px; border: 1px solid var(--line);
+    background: var(--paper); color: var(--ink-soft);
+  }
+  #copyRemoteLinkBtn{
+    font-size: 12.5px; font-weight:700; padding: 7px 10px;
+    border-radius: 7px; border: 1px solid var(--line);
+    background: var(--paper-raised); color: var(--ink); cursor:pointer;
+  }
+  #copyRemoteLinkBtn:hover{ border-color: var(--accent); }
+  .remote-note{ font-size: 11.5px; color: var(--ink-soft); line-height:1.5; margin:0; }
+
+  /* ---- Remote controller view (phone/laptop) ---- */
+  #remoteView{
+    min-height: 100vh;
+    background: var(--paper);
+    color: var(--ink);
+    display:flex; align-items:flex-start; justify-content:center;
+    padding: 28px 18px;
+  }
+  .rv-wrap{ width:100%; max-width: 480px; }
+  .rv-header{ display:flex; align-items:center; gap:12px; margin-bottom: 4px; }
+  .rv-logo{ font-size: 30px; line-height:1; }
+  .rv-header h1{ font-family:'Baloo 2',sans-serif; font-size: 24px; margin:0; font-weight:800; }
+  .rv-sub{ margin: 2px 0 0; font-size:13px; color:var(--ink-soft); font-family:'Space Mono',monospace; }
+  .rv-status{ margin: 18px 0 4px; font-size: 13px; font-weight:600; color: var(--accent2); }
+  .rv-status.error{ color: var(--danger); }
+  .rv-board{ margin: 0 0 16px; font-size: 12.5px; color: var(--ink-soft); font-family:'Space Mono',monospace; }
+  .rv-all{
+    width:100%; padding: 14px; margin-bottom: 14px;
+    font-size: 15px; font-weight:700; font-family:'Work Sans',sans-serif;
+    border-radius: 12px; border: 1px solid var(--line);
+    background: var(--paper-raised); color: var(--ink); cursor:pointer;
+  }
+  .rv-all.active{ background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .rv-chips{ display:grid; grid-template-columns: repeat(auto-fill, minmax(96px,1fr)); gap: 10px; }
+  .rv-chip{
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    padding: 14px 8px;
+    font-family:'Space Mono',monospace; font-size: 14px; font-weight:700;
+    border-radius: 12px; border: 1px solid var(--line);
+    background: var(--paper-raised); color: var(--ink-soft); cursor:pointer;
+  }
+  .rv-chip .dot{ width:22px; height:22px; border-radius:50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18); }
+  .rv-chip .rv-count{ font-size: 11px; color: var(--ink-soft); font-weight:500; }
+  .rv-chip.active{ background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .rv-chip.active .rv-count{ color: var(--paper); opacity:0.75; }
+
   @media (prefers-reduced-motion: reduce){
     *{ transition: none !important; animation: none !important; }
   }
@@ -554,6 +629,30 @@
         </div>
       </div>
 
+      <div class="panel">
+        <h2><span class="dot"></span>Remote control</h2>
+        <div class="field">
+          <label class="check-label">
+            <input type="checkbox" id="remoteToggle">
+            Control the focused color from another device
+          </label>
+        </div>
+        <div id="remotePanelBody" hidden>
+          <div class="remote-code-row">
+            <span class="remote-code" id="roomCodeText">&mdash;</span>
+            <span class="remote-status" id="remoteStatus">Off</span>
+          </div>
+          <div class="remote-share">
+            <canvas id="roomQr" width="132" height="132"></canvas>
+            <div class="remote-share-actions">
+              <input type="text" id="remoteLinkInput" readonly aria-label="Remote control link">
+              <button type="button" id="copyRemoteLinkBtn">Copy link</button>
+            </div>
+          </div>
+          <p class="remote-note">Open this link (or scan the code) on your phone or laptop to change the focused color without touching this screen. Anyone with this link can control it too, so don't post it publicly.</p>
+        </div>
+      </div>
+
     </div>
 
     <!-- RIGHT: stage -->
@@ -617,6 +716,22 @@
   </div>
 
   <p class="credit">Palette codes match a 221-color fuse bead assortment (A/B/C/D/E/F/G/H/M series) &mdash; hex values are a close visual read of the seller's swatch chart, not lab-measured.</p>
+</div>
+
+<div id="remoteView" hidden>
+  <div class="rv-wrap">
+    <div class="rv-header">
+      <span class="rv-logo" aria-hidden="true">🧵</span>
+      <div>
+        <h1>Bead Remote</h1>
+        <p class="rv-sub">Room <b id="remoteViewCode">&mdash;</b></p>
+      </div>
+    </div>
+    <p class="rv-status" id="remoteViewStatus">Connecting&hellip;</p>
+    <p class="rv-board" id="remoteViewBoard"></p>
+    <button type="button" class="rv-all active" id="remoteViewAll">All colors</button>
+    <div class="rv-chips" id="remoteViewChips"></div>
+  </div>
 </div>
 
 <script>
@@ -957,6 +1072,7 @@
       const beadCount = shown.reduce((sum, e) => sum + e.count, 0);
       colorsUsedSub.textContent = "focusing " + shown.map(e => e.code).join(", ") + " — " + beadCount.toLocaleString() + " beads";
     }
+    publishHostState();
   }
   function buildFocusChips(entries){
     focusRow.querySelectorAll('.focus-chip[data-code]').forEach(chip => chip.remove());
@@ -1210,6 +1326,196 @@
   }
 
   window.addEventListener('resize', () => { if (lastGrid) drawFromCache(); });
+
+  // ==== Remote control: pair a second device (phone/laptop) to change the
+  // focused color hands-free while beading. Uses a public MQTT-over-WebSocket
+  // broker as a free relay — there's no backend of our own, so the only
+  // "access control" is the room code in the link. Treat that link like a
+  // shared password: anyone who has it can send focus commands too. ====
+  const MQTT_BROKER_URL = 'wss://broker.hivemq.com:8884/mqtt';
+  function topicState(code){ return 'fusebeadstudio/v1/' + code + '/state'; }
+  function topicCmd(code){ return 'fusebeadstudio/v1/' + code + '/cmd'; }
+  function makeRoomCode(){
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
+    let s = '';
+    for (let i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)];
+    return s;
+  }
+  function getOrCreateRoomCode(){
+    let code = null;
+    try { code = localStorage.getItem('fbsRoomCode'); } catch (e) {}
+    if (!code){
+      code = makeRoomCode();
+      try { localStorage.setItem('fbsRoomCode', code); } catch (e) {}
+    }
+    return code;
+  }
+
+  // ---- Host side: this device has the pattern open and gets remote-controlled ----
+  const remoteToggle = document.getElementById('remoteToggle');
+  const remotePanelBody = document.getElementById('remotePanelBody');
+  const roomCodeText = document.getElementById('roomCodeText');
+  const remoteStatusEl = document.getElementById('remoteStatus');
+  const roomQrCanvas = document.getElementById('roomQr');
+  const remoteLinkInput = document.getElementById('remoteLinkInput');
+  const copyRemoteLinkBtn = document.getElementById('copyRemoteLinkBtn');
+
+  let hostClient = null;
+  let hostRoomCode = null;
+
+  function setHostStatus(text, cls){
+    remoteStatusEl.textContent = text;
+    remoteStatusEl.classList.remove('live', 'error');
+    if (cls) remoteStatusEl.classList.add(cls);
+  }
+
+  function buildRemoteLink(code){
+    const url = new URL(location.href);
+    url.search = '?remote=' + code;
+    url.hash = '';
+    return url.toString();
+  }
+
+  function renderRoomQr(link){
+    if (typeof QRCode === 'undefined' || !roomQrCanvas) return;
+    QRCode.toCanvas(roomQrCanvas, link, { width: 132, margin: 1 }, () => {});
+  }
+
+  function publishHostState(){
+    if (!hostClient || !hostClient.connected || !hostRoomCode || !lastGrid) return;
+    const state = {
+      board: lastGrid.cols + ' × ' + lastGrid.rows,
+      colors: lastGrid.usedEntries.map(e => ({ code: e.code, hex: e.hex, count: e.count })),
+      selected: [...selectedColors]
+    };
+    hostClient.publish(topicState(hostRoomCode), JSON.stringify(state), { retain: true, qos: 0 });
+  }
+
+  function enableRemoteHost(){
+    hostRoomCode = getOrCreateRoomCode();
+    roomCodeText.textContent = hostRoomCode;
+    const link = buildRemoteLink(hostRoomCode);
+    remoteLinkInput.value = link;
+    renderRoomQr(link);
+    remotePanelBody.hidden = false;
+
+    if (typeof mqtt === 'undefined'){
+      setHostStatus('Unavailable (library failed to load)', 'error');
+      return;
+    }
+    setHostStatus('Connecting…');
+    hostClient = mqtt.connect(MQTT_BROKER_URL, {
+      clientId: 'fbsHost_' + Math.random().toString(16).slice(2),
+      clean: true,
+      reconnectPeriod: 3000,
+      connectTimeout: 8000
+    });
+    hostClient.on('connect', () => {
+      setHostStatus('Live — paired and ready', 'live');
+      hostClient.subscribe(topicCmd(hostRoomCode));
+      publishHostState();
+    });
+    hostClient.on('reconnect', () => setHostStatus('Reconnecting…'));
+    hostClient.on('close', () => setHostStatus('Disconnected'));
+    hostClient.on('error', () => setHostStatus('Connection error', 'error'));
+    hostClient.on('message', (topic, payload) => {
+      let msg;
+      try { msg = JSON.parse(payload.toString()); } catch (e) { return; }
+      if (msg && msg.type === 'focus' && typeof msg.code === 'string') setFocus(msg.code);
+      else if (msg && msg.type === 'all') setFocus(null);
+    });
+  }
+
+  function disableRemoteHost(){
+    remotePanelBody.hidden = true;
+    if (hostClient){
+      try { hostClient.end(true); } catch (e) {}
+      hostClient = null;
+    }
+    setHostStatus('Off');
+  }
+
+  remoteToggle.addEventListener('change', () => {
+    if (remoteToggle.checked) enableRemoteHost(); else disableRemoteHost();
+  });
+
+  copyRemoteLinkBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(remoteLinkInput.value);
+      const prev = copyRemoteLinkBtn.textContent;
+      copyRemoteLinkBtn.textContent = 'Copied!';
+      setTimeout(() => { copyRemoteLinkBtn.textContent = prev; }, 1500);
+    } catch (e) {
+      remoteLinkInput.select();
+    }
+  });
+
+  // ---- Remote controller view: this device sends focus commands to the host ----
+  function initRemoteControllerView(codeRaw){
+    const code = codeRaw.toUpperCase();
+    document.querySelector('.wrap').hidden = true;
+    const view = document.getElementById('remoteView');
+    view.hidden = false;
+    const statusEl = document.getElementById('remoteViewStatus');
+    const boardEl = document.getElementById('remoteViewBoard');
+    const chipsEl = document.getElementById('remoteViewChips');
+    const allBtn = document.getElementById('remoteViewAll');
+    document.getElementById('remoteViewCode').textContent = code;
+
+    if (typeof mqtt === 'undefined'){
+      statusEl.textContent = 'Could not load the connection library — check your connection and reload.';
+      statusEl.classList.add('error');
+      return;
+    }
+
+    const client = mqtt.connect(MQTT_BROKER_URL, {
+      clientId: 'fbsRemote_' + Math.random().toString(16).slice(2),
+      clean: true,
+      reconnectPeriod: 3000,
+      connectTimeout: 8000
+    });
+
+    function renderChips(colors, selected){
+      chipsEl.innerHTML = '';
+      colors.forEach(c => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'rv-chip' + (selected.includes(c.code) ? ' active' : '');
+        b.innerHTML = '<span class="dot" style="background:' + c.hex + '"></span>' + c.code +
+          '<span class="rv-count">' + c.count + '</span>';
+        b.addEventListener('click', () => {
+          client.publish(topicCmd(code), JSON.stringify({ type: 'focus', code: c.code }));
+        });
+        chipsEl.appendChild(b);
+      });
+      allBtn.classList.toggle('active', selected.length === 0);
+    }
+
+    client.on('connect', () => {
+      statusEl.textContent = 'Connected — waiting for the pattern…';
+      statusEl.classList.remove('error');
+      client.subscribe(topicState(code));
+    });
+    client.on('reconnect', () => statusEl.textContent = 'Reconnecting…');
+    client.on('close', () => statusEl.textContent = 'Disconnected');
+    client.on('error', () => { statusEl.textContent = 'Connection error'; statusEl.classList.add('error'); });
+    client.on('message', (topic, payload) => {
+      let state;
+      try { state = JSON.parse(payload.toString()); } catch (e) { return; }
+      const selected = state.selected || [];
+      boardEl.textContent = (state.board || '') + ' · ' + (state.colors || []).length + ' colors';
+      renderChips(state.colors || [], selected);
+      statusEl.textContent = 'Live';
+      statusEl.classList.remove('error');
+    });
+
+    allBtn.addEventListener('click', () => {
+      client.publish(topicCmd(code), JSON.stringify({ type: 'all' }));
+    });
+  }
+
+  const remoteCodeParam = new URLSearchParams(location.search).get('remote');
+  if (remoteCodeParam) initRemoteControllerView(remoteCodeParam);
 })();
 </script>
 </body>
