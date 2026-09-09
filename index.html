@@ -314,8 +314,70 @@
   .save-btn:hover{ transform: translateY(-1px); }
   .save-btn:disabled{ opacity: 0.6; cursor: default; transform:none; }
   .save-btn.done{ background: var(--accent2); border-color: var(--accent2); }
+  .focus-row{
+    display:flex; flex-wrap: wrap; gap: 6px;
+    margin-bottom: 12px;
+  }
+  .focus-chip{
+    display:flex; align-items:center; gap: 6px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px; font-weight: 700;
+    padding: 5px 10px 5px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .focus-chip .dot{
+    width: 12px; height: 12px; border-radius: 50%;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18);
+    flex: none;
+  }
+  .focus-chip.all{ font-family:'Work Sans',sans-serif; font-weight:600; padding-left:10px; }
+  .focus-chip:hover{ border-color: var(--accent); }
+  .focus-chip.active{ background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .focus-chip.active .dot{ box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5); }
+
+  .zoom-row{
+    display:flex; align-items:center; gap: 8px;
+    margin-bottom: 12px;
+    padding: 8px 10px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .zoom-label{
+    font-size: 12px; font-weight: 600; color: var(--ink-soft);
+    text-transform: uppercase; letter-spacing: 0.05em;
+    margin-right: 2px; flex: none;
+  }
+  .zoom-btn{
+    width: 26px; height: 26px; flex: none;
+    border-radius: 7px; border: 1px solid var(--line);
+    background: var(--paper-raised); color: var(--ink);
+    font-size: 15px; line-height:1; cursor: pointer;
+  }
+  .zoom-btn:hover{ border-color: var(--accent); }
+  #zoomSlider{ flex:1; min-width: 60px; accent-color: var(--accent); }
+  .zoom-pct{
+    font-family:'Space Mono',monospace; font-size: 12.5px; color: var(--ink-soft);
+    width: 42px; text-align:right; flex: none;
+  }
+  .zoom-fit-btn{
+    font-size: 12px; font-weight: 700;
+    padding: 5px 10px; flex: none;
+    border-radius: 7px; border: 1px solid var(--line);
+    background: var(--paper-raised); color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .zoom-fit-btn:hover{ border-color: var(--accent); color: var(--ink); }
   .canvas-frame{
-    display:flex; justify-content:center; align-items:center;
+    /* text-align (not flex centering) so a zoomed-in canvas bigger than the
+       frame stays fully reachable by scrolling — centering via flexbox clips
+       the overflowing side instead of letting you scroll to it. */
+    display:block;
+    text-align: center;
     background:
       linear-gradient(45deg, color-mix(in srgb, var(--line) 35%, transparent) 25%, transparent 25%) -8px 0/16px 16px,
       linear-gradient(-45deg, color-mix(in srgb, var(--line) 35%, transparent) 25%, transparent 25%) -8px 0/16px 16px,
@@ -323,8 +385,9 @@
     border-radius: 12px;
     padding: 18px;
     overflow: auto;
+    max-height: 75vh;
   }
-  #patternCanvas{ display:block; image-rendering: pixelated; border-radius: 4px; }
+  #patternCanvas{ display:inline-block; image-rendering: pixelated; border-radius: 4px; }
   .canvas-hint{
     margin-top: 10px; font-size: 12px; color: var(--ink-soft); text-align:center;
   }
@@ -362,6 +425,9 @@
     vertical-align: middle;
   }
   table.legend tr:last-child td{ border-bottom: none; }
+  table.legend tbody tr{ cursor: pointer; }
+  table.legend tbody tr:hover{ background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  table.legend tbody tr.dim{ opacity: 0.35; }
   .swatch{
     width: 22px; height: 22px; border-radius: 7px;
     display: inline-block;
@@ -508,6 +574,20 @@
               Save image
             </button>
           </div>
+
+          <div class="focus-row" id="focusRow">
+            <button class="focus-chip all active" id="focusAllBtn" type="button">All colors</button>
+          </div>
+
+          <div class="zoom-row">
+            <span class="zoom-label">Trace zoom</span>
+            <button class="zoom-btn" id="zoomOut" type="button" aria-label="Zoom out">&minus;</button>
+            <input type="range" id="zoomSlider" min="50" max="400" step="5" value="100" aria-label="Zoom level">
+            <output id="zoomPct" class="zoom-pct">100%</output>
+            <button class="zoom-btn" id="zoomIn" type="button" aria-label="Zoom in">+</button>
+            <button class="zoom-fit-btn" id="zoomFit" type="button">Fit</button>
+          </div>
+
           <div class="canvas-frame">
             <canvas id="patternCanvas"></canvas>
           </div>
@@ -617,6 +697,8 @@
   let fitMode = "cover";
   let viewMode = "color";
   let activePalette = PALETTE;
+  let selectedColors = new Set(); // empty = show every color
+  let zoomPct = 100; // 100 = fit-to-frame baseline; scales up/down from there
 
   function sourceRect(){
     if (!img) return null;
@@ -690,6 +772,13 @@
   const chip3 = document.getElementById('chip3');
   const saveImageBtn = document.getElementById('saveImageBtn');
   const canvasHint = document.getElementById('canvasHint');
+  const focusRow = document.getElementById('focusRow');
+  const focusAllBtn = document.getElementById('focusAllBtn');
+  const zoomSlider = document.getElementById('zoomSlider');
+  const zoomPctOut = document.getElementById('zoomPct');
+  const zoomIn = document.getElementById('zoomIn');
+  const zoomOut = document.getElementById('zoomOut');
+  const zoomFit = document.getElementById('zoomFit');
 
   // ---- Save-to-device (falls back to a hint if the host can't offer it) ----
   const downloadsReady = (window.claude && typeof window.claude.use === 'function')
@@ -813,6 +902,63 @@
     render();
   });
 
+  // ---- Trace zoom ----
+  function setZoom(pct){
+    zoomPct = Math.max(50, Math.min(400, pct));
+    zoomSlider.value = zoomPct;
+    zoomPctOut.textContent = zoomPct + "%";
+    drawFromCache();
+  }
+  zoomSlider.addEventListener('input', () => setZoom(parseInt(zoomSlider.value)));
+  zoomIn.addEventListener('click', () => setZoom(zoomPct + 15));
+  zoomOut.addEventListener('click', () => setZoom(zoomPct - 15));
+  zoomFit.addEventListener('click', () => setZoom(100));
+
+  // ---- Color focus (trace one or two colors at a time) ----
+  function setFocus(code){
+    if (code === null){
+      selectedColors.clear();
+    } else if (selectedColors.has(code)){
+      selectedColors.delete(code);
+    } else {
+      selectedColors.add(code);
+    }
+    updateFocusChipStates();
+    drawFromCache();
+  }
+  function updateFocusChipStates(){
+    const allActive = selectedColors.size === 0;
+    focusAllBtn.classList.toggle('active', allActive);
+    focusRow.querySelectorAll('.focus-chip[data-code]').forEach(chip => {
+      chip.classList.toggle('active', selectedColors.has(chip.dataset.code));
+    });
+    legendBody.querySelectorAll('tr[data-code]').forEach(row => {
+      row.classList.toggle('dim', !allActive && !selectedColors.has(row.dataset.code));
+    });
+    if (!lastGrid){ return; }
+    if (allActive){
+      colorsUsedSub.textContent = lastGrid.usedEntries.length + (lastGrid.usedEntries.length===1 ? " color" : " colors");
+    } else {
+      const shown = lastGrid.usedEntries.filter(e => selectedColors.has(e.code));
+      const beadCount = shown.reduce((sum, e) => sum + e.count, 0);
+      colorsUsedSub.textContent = "focusing " + shown.map(e => e.code).join(", ") + " — " + beadCount.toLocaleString() + " beads";
+    }
+  }
+  function buildFocusChips(entries){
+    focusRow.querySelectorAll('.focus-chip[data-code]').forEach(chip => chip.remove());
+    for (const e of entries){
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'focus-chip';
+      chip.dataset.code = e.code;
+      chip.innerHTML = '<span class="dot" style="background:' + e.hex + '"></span>' + e.code;
+      chip.addEventListener('click', () => setFocus(e.code));
+      focusRow.appendChild(chip);
+    }
+    updateFocusChipStates();
+  }
+  focusAllBtn.addEventListener('click', () => setFocus(null));
+
   // ---- Core pipeline ----
   let lastGrid = null; // {cols, rows, cells: [{idx}], colorsUsed: [{...}]}
 
@@ -868,6 +1014,10 @@
       .sort((a,b) => compareCode(a.code, b.code));
     const codeByIdx = new Map(usedEntries.map(e => [e.idx, e.code]));
 
+    // Drop any focused color that no longer appears (board size/palette changed).
+    const stillUsed = new Set(usedEntries.map(e => e.code));
+    [...selectedColors].forEach(c => { if (!stillUsed.has(c)) selectedColors.delete(c); });
+
     lastGrid = {cols, rows, cellIdx, usedEntries, codeByIdx};
 
     stageEmpty.hidden = true;
@@ -881,6 +1031,7 @@
     totalColors.textContent = usedEntries.length;
 
     buildLegend(usedEntries);
+    buildFocusChips(usedEntries);
     drawFromCache();
   }
 
@@ -888,6 +1039,9 @@
     legendBody.innerHTML = "";
     for (const e of entries){
       const tr = document.createElement('tr');
+      tr.dataset.code = e.code;
+      tr.title = "Click to focus on " + e.code;
+      tr.addEventListener('click', () => setFocus(e.code));
       tr.innerHTML =
         '<td><span class="swatch" style="background:' + e.hex + '"></span></td>' +
         '<td class="name">' + e.code + '</td>' +
@@ -902,8 +1056,18 @@
     const {cols, rows, cellIdx, codeByIdx} = lastGrid;
     const dpr = window.devicePixelRatio || 1;
     const maxStagePx = Math.min(760, document.querySelector('.canvas-frame').clientWidth - 36 || 640);
-    let cell = Math.floor(maxStagePx / cols);
-    cell = Math.max(20, Math.min(36, cell));
+    let cellAuto = Math.floor(maxStagePx / cols);
+    cellAuto = Math.max(20, Math.min(36, cellAuto));
+    let cell = Math.round(cellAuto * (zoomPct / 100));
+
+    // Keep the backing canvas within safe GPU texture limits even at high
+    // zoom on a large board — shrink the cell rather than let it fail to draw.
+    const safeMaxPx = 8000;
+    if (cell * cols * dpr > safeMaxPx) cell = Math.floor(safeMaxPx / (cols * dpr));
+    if (cell * rows * dpr > safeMaxPx) cell = Math.floor(safeMaxPx / (rows * dpr));
+    cell = Math.max(3, cell);
+
+    const focusActive = selectedColors.size > 0;
     const w = cols * cell, h = rows * cell;
 
     canvas.width = w * dpr;
@@ -930,6 +1094,14 @@
           continue;
         }
         const entry = activePalette[idx];
+        if (focusActive && !selectedColors.has(entry.code)){
+          // Not one of the colors being traced right now — leave a faint
+          // outline for position reference instead of the full bead.
+          ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x+0.5, y+0.5, cell-1, cell-1);
+          continue;
+        }
         if (viewMode === 'color'){
           const pad = Math.max(0.5, cell*0.06);
           const r = Math.max(2, cell*0.28);
