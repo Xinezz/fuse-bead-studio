@@ -261,6 +261,7 @@
   }
   .seg button:last-child{ border-right: none; }
   .seg button.active{ background: var(--accent); color: var(--accent-ink); }
+  .seg-3 button{ font-size: 11.5px; padding: 8px 4px; line-height: 1.25; }
 
   .range-row{ display:flex; align-items:center; gap: 10px; }
   .range-row input[type=range]{ flex:1; accent-color: var(--accent); }
@@ -454,6 +455,7 @@
 </head>
 <body>
 
+
 <div class="wrap">
 
   <header class="top">
@@ -544,9 +546,10 @@
         </div>
         <div class="field">
           <label>Chart style</label>
-          <div class="seg">
-            <button id="viewColor" class="active">Bead color + symbol</button>
-            <button id="viewSymbol">Printable symbols only</button>
+          <div class="seg seg-3">
+            <button id="viewColor" class="active">Bead + symbol</button>
+            <button id="viewSymbol">Printable symbols</button>
+            <button id="viewPreview">Finished preview</button>
           </div>
         </div>
       </div>
@@ -752,8 +755,10 @@
   const fitCover = document.getElementById('fitCover');
   const fitStretch = document.getElementById('fitStretch');
   const trimToggle = document.getElementById('trimToggle');
+  const canvasTitle = document.getElementById('canvasTitle');
   const viewColorBtn = document.getElementById('viewColor');
   const viewSymbolBtn = document.getElementById('viewSymbol');
+  const viewPreviewBtn = document.getElementById('viewPreview');
   const paletteSize = document.getElementById('paletteSize');
   const paletteSizeOut = document.getElementById('paletteSizeOut');
   const paletteCountLabel = document.getElementById('paletteCountLabel');
@@ -893,8 +898,17 @@
     if (aspectLocked) syncAspect('cols');
     render();
   });
-  viewColorBtn.addEventListener('click', () => { viewMode = 'color'; viewColorBtn.classList.add('active'); viewSymbolBtn.classList.remove('active'); drawFromCache(); });
-  viewSymbolBtn.addEventListener('click', () => { viewMode = 'symbol'; viewSymbolBtn.classList.add('active'); viewColorBtn.classList.remove('active'); drawFromCache(); });
+  function setViewMode(mode){
+    viewMode = mode;
+    viewColorBtn.classList.toggle('active', mode === 'color');
+    viewSymbolBtn.classList.toggle('active', mode === 'symbol');
+    viewPreviewBtn.classList.toggle('active', mode === 'preview');
+    canvasTitle.textContent = mode === 'preview' ? 'Finished preview' : 'Pattern chart';
+    drawFromCache();
+  }
+  viewColorBtn.addEventListener('click', () => setViewMode('color'));
+  viewSymbolBtn.addEventListener('click', () => setViewMode('symbol'));
+  viewPreviewBtn.addEventListener('click', () => setViewMode('preview'));
   paletteSize.addEventListener('input', () => {
     paletteSizeOut.textContent = paletteSize.value;
     paletteCountLabel.textContent = "(" + paletteSize.value + " of " + PALETTE.length + ")";
@@ -1089,20 +1103,32 @@
         const idx = cellIdx[ry*cols+rx];
         const x = rx*cell, y = ry*cell;
         if (idx === -1){
-          ctx.fillStyle = bg;
-          ctx.fillRect(x, y, cell, cell);
+          // Preview mode leaves empty cells transparent (the checkerboard
+          // shows through) instead of painted board plastic — there's no
+          // bead there in the finished piece, so there's nothing to show.
+          if (viewMode !== 'preview'){
+            ctx.fillStyle = bg;
+            ctx.fillRect(x, y, cell, cell);
+          }
           continue;
         }
         const entry = activePalette[idx];
         if (focusActive && !selectedColors.has(entry.code)){
           // Not one of the colors being traced right now — leave a faint
           // outline for position reference instead of the full bead.
-          ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(x+0.5, y+0.5, cell-1, cell-1);
+          if (viewMode !== 'preview'){
+            ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x+0.5, y+0.5, cell-1, cell-1);
+          }
           continue;
         }
-        if (viewMode === 'color'){
+        if (viewMode === 'preview'){
+          // The finished result: flat, edge-to-edge color, no pegboard
+          // holes and no code labels — just what the melted beads look like.
+          ctx.fillStyle = entry.hex;
+          ctx.fillRect(x, y, cell, cell);
+        } else if (viewMode === 'color'){
           const pad = Math.max(0.5, cell*0.06);
           const r = Math.max(2, cell*0.28);
           roundRect(ctx, x+pad, y+pad, cell-pad*2, cell-pad*2, r);
@@ -1146,15 +1172,18 @@
       }
     }
 
-    // emphasize every 10th grid line for counting, like a craft chart
-    ctx.strokeStyle = line;
-    for (let gx = 0; gx <= cols; gx += 10){
-      ctx.lineWidth = gx===0||gx===cols ? 1 : 1.4;
-      ctx.beginPath(); ctx.moveTo(gx*cell+0.5, 0); ctx.lineTo(gx*cell+0.5, h); ctx.stroke();
-    }
-    for (let gy = 0; gy <= rows; gy += 10){
-      ctx.lineWidth = gy===0||gy===rows ? 1 : 1.4;
-      ctx.beginPath(); ctx.moveTo(0, gy*cell+0.5); ctx.lineTo(w, gy*cell+0.5); ctx.stroke();
+    // emphasize every 10th grid line for counting, like a craft chart —
+    // skipped in preview mode, which should read as a plain finished image.
+    if (viewMode !== 'preview'){
+      ctx.strokeStyle = line;
+      for (let gx = 0; gx <= cols; gx += 10){
+        ctx.lineWidth = gx===0||gx===cols ? 1 : 1.4;
+        ctx.beginPath(); ctx.moveTo(gx*cell+0.5, 0); ctx.lineTo(gx*cell+0.5, h); ctx.stroke();
+      }
+      for (let gy = 0; gy <= rows; gy += 10){
+        ctx.lineWidth = gy===0||gy===rows ? 1 : 1.4;
+        ctx.beginPath(); ctx.moveTo(0, gy*cell+0.5); ctx.lineTo(w, gy*cell+0.5); ctx.stroke();
+      }
     }
   }
 
