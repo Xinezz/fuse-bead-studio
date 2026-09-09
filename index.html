@@ -346,7 +346,7 @@
   .focus-chip.active .dot{ box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5); }
 
   .zoom-row{
-    display:flex; align-items:center; gap: 8px;
+    display:flex; align-items:center; gap: 8px; flex-wrap: wrap;
     margin-bottom: 12px;
     padding: 8px 10px;
     background: var(--paper);
@@ -367,8 +367,8 @@
   .zoom-btn:hover{ border-color: var(--accent); }
   #zoomSlider{ flex:1; min-width: 60px; accent-color: var(--accent); }
   .zoom-pct{
-    font-family:'Space Mono',monospace; font-size: 12.5px; color: var(--ink-soft);
-    width: 42px; text-align:right; flex: none;
+    font-family:'Space Mono',monospace; font-size: 11.5px; color: var(--ink-soft);
+    width: 48px; text-align:right; flex: none;
   }
   .zoom-fit-btn{
     font-size: 12px; font-weight: 700;
@@ -378,6 +378,39 @@
     cursor: pointer;
   }
   .zoom-fit-btn:hover{ border-color: var(--accent); color: var(--ink); }
+  .zoom-fit-btn.active{ background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+  .mm-input{
+    width: 100%;
+    font-family: 'Space Mono', monospace;
+    font-size: 15px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .calib-hint{ font-size: 11.5px; color: var(--ink-soft); line-height: 1.5; margin: 0 0 10px; }
+  .calib-bar{
+    height: 46px; border-radius: 7px;
+    background: linear-gradient(135deg, var(--accent), var(--highlight));
+    display:flex; align-items:center; justify-content:center;
+    color: var(--accent-ink); font-size: 11px; font-weight: 700;
+    font-family: 'Space Mono', monospace; letter-spacing: 0.04em;
+    text-transform: uppercase;
+    max-width: 100%;
+  }
+  #calibSlider{ width: 100%; margin-top: 8px; accent-color: var(--accent); }
+  .calib-readout{
+    font-family: 'Space Mono', monospace; font-size: 11.5px; color: var(--ink-soft);
+    margin: 6px 0 0; text-align: center;
+  }
+  .calib-confirm{ width: 100%; justify-content: center; margin-top: 10px; }
+  .calib-status{
+    font-size: 11.5px; color: var(--ink-soft); line-height: 1.5; margin: 12px 0 0;
+    text-align: center;
+  }
+  .calib-status.done{ color: var(--accent2); font-weight: 600; }
   .canvas-frame{
     /* text-align (not flex centering) so a zoomed-in canvas bigger than the
        frame stays fully reachable by scrolling — centering via flexbox clips
@@ -648,6 +681,23 @@
       </div>
 
       <div class="panel">
+        <h2><span class="dot"></span>Actual size</h2>
+        <div class="field">
+          <label for="beadDiameter">Bead diameter (mm)</label>
+          <input type="number" id="beadDiameter" min="1" max="20" step="0.1" value="2.6" class="mm-input">
+        </div>
+        <div class="field">
+          <label>Calibrate this screen</label>
+          <p class="calib-hint">No ruler needed &mdash; hold a credit, debit, or ID card flat against the screen along the bar below (cards are all a standard 85.6&nbsp;mm wide) and drag until the bar matches the card's edge-to-edge width.</p>
+          <div class="calib-bar" id="calibBar">card width &rarr;</div>
+          <input type="range" id="calibSlider" min="150" max="650" value="320" aria-label="Calibration bar width">
+          <p class="calib-readout" id="calibReadout"></p>
+          <button type="button" class="ghost-btn calib-confirm" id="calibConfirm">Use this calibration</button>
+        </div>
+        <p class="calib-status" id="calibStatus"></p>
+      </div>
+
+      <div class="panel">
         <h2><span class="dot"></span>Palette</h2>
         <div class="field">
           <label for="paletteSize">Colors to use <span id="paletteCountLabel"></span></label>
@@ -731,6 +781,7 @@
             <output id="zoomPct" class="zoom-pct">100%</output>
             <button class="zoom-btn" id="zoomIn" type="button" aria-label="Zoom in">+</button>
             <button class="zoom-fit-btn" id="zoomFit" type="button">Fit</button>
+            <button class="zoom-fit-btn" id="trueSizeBtn" type="button" title="Size each bead to its real physical diameter, using your screen calibration">True size</button>
           </div>
 
           <div class="canvas-frame">
@@ -862,6 +913,17 @@
   let zoomPct = 100; // 100 = fit-to-frame baseline; scales up/down from there
   let fullscreenMode = false;
 
+  // ---- True-size (physical mm) mode ----
+  const CARD_WIDTH_MM = 85.6; // ISO/IEC 7810 ID-1 — standard credit/debit/ID card width
+  const FALLBACK_PX_PER_MM = 96 / 25.4; // CSS's nominal 96dpi, used only until the screen is calibrated
+  let trueSizeActive = false;
+  let beadDiameterMm = 2.6;
+  let pxPerMm = null;
+  try {
+    const savedPxPerMm = parseFloat(localStorage.getItem('fbsPxPerMm'));
+    if (savedPxPerMm && isFinite(savedPxPerMm) && savedPxPerMm > 0) pxPerMm = savedPxPerMm;
+  } catch (e) {}
+
   function sourceRect(){
     if (!img) return null;
     if (trimEnabled && trimBox) return trimBox;
@@ -914,6 +976,13 @@
   const fitCover = document.getElementById('fitCover');
   const fitStretch = document.getElementById('fitStretch');
   const trimToggle = document.getElementById('trimToggle');
+  const beadDiameterInput = document.getElementById('beadDiameter');
+  const calibBar = document.getElementById('calibBar');
+  const calibSlider = document.getElementById('calibSlider');
+  const calibReadout = document.getElementById('calibReadout');
+  const calibConfirm = document.getElementById('calibConfirm');
+  const calibStatus = document.getElementById('calibStatus');
+  const trueSizeBtn = document.getElementById('trueSizeBtn');
   const canvasTitle = document.getElementById('canvasTitle');
   const viewColorBtn = document.getElementById('viewColor');
   const viewSymbolBtn = document.getElementById('viewSymbol');
@@ -1080,6 +1149,8 @@
 
   // ---- Trace zoom ----
   function setZoom(pct){
+    trueSizeActive = false;
+    trueSizeBtn.classList.remove('active');
     zoomPct = Math.max(50, Math.min(400, pct));
     zoomSlider.value = zoomPct;
     zoomPctOut.textContent = zoomPct + "%";
@@ -1089,6 +1160,43 @@
   zoomIn.addEventListener('click', () => setZoom(zoomPct + 15));
   zoomOut.addEventListener('click', () => setZoom(zoomPct - 15));
   zoomFit.addEventListener('click', () => setZoom(100));
+
+  // ---- Real physical size, calibrated against a standard card ----
+  function updateCalibBar(){
+    const px = parseInt(calibSlider.value, 10);
+    calibBar.style.width = px + 'px';
+    calibReadout.textContent = px + ' px on this screen ≈ 1 mm × ' + (px / CARD_WIDTH_MM).toFixed(2);
+  }
+  function setCalibStatus(){
+    if (pxPerMm){
+      calibStatus.textContent = 'Calibrated — 1 mm ≈ ' + pxPerMm.toFixed(2) + ' px on this screen. Recalibrate if you pinch-zoom the page or switch devices.';
+      calibStatus.classList.add('done');
+    } else {
+      calibStatus.textContent = 'Not calibrated yet — "True size" will use a rough 96dpi estimate until you calibrate.';
+      calibStatus.classList.remove('done');
+    }
+  }
+  calibSlider.addEventListener('input', updateCalibBar);
+  updateCalibBar();
+  setCalibStatus();
+  calibConfirm.addEventListener('click', () => {
+    const px = parseInt(calibSlider.value, 10);
+    pxPerMm = px / CARD_WIDTH_MM;
+    try { localStorage.setItem('fbsPxPerMm', String(pxPerMm)); } catch (e) {}
+    setCalibStatus();
+    if (trueSizeActive) drawFromCache();
+  });
+  beadDiameterInput.addEventListener('input', () => {
+    const v = parseFloat(beadDiameterInput.value);
+    beadDiameterMm = (v && v > 0) ? v : 2.6;
+    if (trueSizeActive) drawFromCache();
+  });
+  trueSizeBtn.addEventListener('click', () => {
+    trueSizeActive = !trueSizeActive;
+    trueSizeBtn.classList.toggle('active', trueSizeActive);
+    zoomPctOut.textContent = trueSizeActive ? 'actual' : (zoomPct + '%');
+    drawFromCache();
+  });
 
   // ---- Full screen: same panel, same state, just bigger ----
   function setFullscreen(on){
@@ -1248,20 +1356,29 @@
     const {cols, rows, cellIdx, codeByIdx} = lastGrid;
     const dpr = window.devicePixelRatio || 1;
     const frameEl = document.querySelector('.canvas-frame');
-    let cellAuto;
-    if (fullscreenMode){
-      // In full screen the frame's height is a real flexed size (not
-      // content-driven), so fit to both dimensions and allow much bigger pegs.
-      const availW = frameEl.clientWidth - 36 || 640;
-      const availH = frameEl.clientHeight - 36 || 640;
-      cellAuto = Math.floor(Math.min(availW / cols, availH / rows));
-      cellAuto = Math.max(20, Math.min(140, cellAuto));
+    let cell;
+    if (trueSizeActive){
+      // Physical scale: CSS pixels are what actually get painted at a real
+      // size on screen, so this ignores the fit/zoom math entirely and uses
+      // the calibrated (or, until then, estimated) px-per-mm directly.
+      const effectivePxPerMm = pxPerMm || FALLBACK_PX_PER_MM;
+      cell = Math.max(2, Math.round(beadDiameterMm * effectivePxPerMm));
     } else {
-      const maxStagePx = Math.min(760, frameEl.clientWidth - 36 || 640);
-      cellAuto = Math.floor(maxStagePx / cols);
-      cellAuto = Math.max(20, Math.min(36, cellAuto));
+      let cellAuto;
+      if (fullscreenMode){
+        // In full screen the frame's height is a real flexed size (not
+        // content-driven), so fit to both dimensions and allow much bigger pegs.
+        const availW = frameEl.clientWidth - 36 || 640;
+        const availH = frameEl.clientHeight - 36 || 640;
+        cellAuto = Math.floor(Math.min(availW / cols, availH / rows));
+        cellAuto = Math.max(20, Math.min(140, cellAuto));
+      } else {
+        const maxStagePx = Math.min(760, frameEl.clientWidth - 36 || 640);
+        cellAuto = Math.floor(maxStagePx / cols);
+        cellAuto = Math.max(20, Math.min(36, cellAuto));
+      }
+      cell = Math.round(cellAuto * (zoomPct / 100));
     }
-    let cell = Math.round(cellAuto * (zoomPct / 100));
 
     // Keep the backing canvas within safe GPU texture limits even at high
     // zoom on a large board — shrink the cell rather than let it fail to draw.
